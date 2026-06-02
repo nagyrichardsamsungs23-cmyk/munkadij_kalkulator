@@ -1,4 +1,0 @@
-Szeretnék egy applikációt, amit tudok majd androidon telefonon és a weboldalamon is futtatni.
-Az lenne a lényeg, hogy egy adatbázis segítségével kiszámolja a különböző munkafolyamatok idejét és a végén kiszámolja a díjat az rezsióradíj segítségével.
-Villanyszerelés lépései lennének benne.
-Hogyan érdemes felépíteni ezt és milyen tech stackel?

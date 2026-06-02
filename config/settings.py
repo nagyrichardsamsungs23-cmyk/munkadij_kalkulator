@@ -96,11 +96,23 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# A Railway egy HTTPS-t lezáró proxy mögött futtat: a kérés belül HTTP-ként
+# érkezik. E header nélkül a Django nem biztonságosnak hiszi a kérést, ami
+# elrontja a CSRF Origin-ellenőrzést és az SSL-redirectet. MINDIG kell.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# A megbízható origin(ek) — a Railway-domaint env-ből vesszük, fallbackkel.
+# FONTOS: NEM az `if not DEBUG` blokkban, hogy akkor is működjön, ha a
+# DEBUG env változó véletlenül nincs False-ra állítva a Railway-en.
+RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
+CSRF_TRUSTED_ORIGINS = ['https://munkadijkalkulator-production.up.railway.app']
+if RAILWAY_PUBLIC_DOMAIN:
+    origin = f'https://{RAILWAY_PUBLIC_DOMAIN}'
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
+
 # Production security (Railway)
 if not DEBUG:
-    CSRF_TRUSTED_ORIGINS = [
-        'https://munkadijkalkulator-production.up.railway.app',
-    ]
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = True
