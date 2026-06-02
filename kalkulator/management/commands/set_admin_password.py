@@ -19,15 +19,28 @@ class Command(BaseCommand):
             return
 
         try:
-            user = User.objects.get(username='admin')
-        except User.DoesNotExist:
+            user, created = User.objects.get_or_create(
+                username='admin',
+                defaults={
+                    'email': 'admin@example.com',
+                    'is_staff': True,
+                    'is_superuser': True,
+                }
+            )
+        except Exception as e:
             self.stdout.write(self.style.ERROR(
-                'HIBA: admin felhasználó nem található!'
+                f'HIBA: admin felhasználó létrehozása nem sikerült: {e}'
             ))
             return
 
         user.set_password(password)
         user.save()
-        self.stdout.write(self.style.SUCCESS(
-            f'Admin jelszó sikeresen beállítva.'
-        ))
+        
+        if created:
+            self.stdout.write(self.style.SUCCESS(
+                'Admin felhasználó létrehozva és jelszó beállítva.'
+            ))
+        else:
+            self.stdout.write(self.style.SUCCESS(
+                'Admin jelszó sikeresen beállítva.'
+            ))
