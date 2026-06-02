@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Munkadíj Kalkulátor — Kezdőlap{% endblock %}
+
+{% block content %}
+{# Hero #}
+<section class="hero text-center">
+    <div class="container position-relative">
+        <h1>Villanyszerelési Munkadíj Kalkulátor</h1>
+        <p class="lead mb-4">
+            Válassz munkafolyamatokat, add meg a mennyiséget,<br>
+            és azonnal megkapod a számított munkadíjat a rezsióradíjad alapján.
+        </p>
+        <a href="{% url 'calculator' %}" class="btn btn-accent btn-lg">
+            <i class="bi bi-plus-circle-fill me-2"></i>Új kalkuláció indítása
+        </a>
+    </div>
+</section>
+
+{# Statisztikák #}
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-6 col-md-3">
+                <div class="stat-card fade-in-up">
+                    <div class="stat-number">{{ category_count }}</div>
+                    <div class="stat-label">Munkakategória</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card fade-in-up">
+                    <div class="stat-number">{{ workitem_count }}</div>
+                    <div class="stat-label">Munkafolyamat</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card fade-in-up">
+                    <div class="stat-number">{{ multiplier_count }}</div>
+                    <div class="stat-label">Szorzó</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card fade-in-up">
+                    <div class="stat-number">
+                        {% if latest_rate %}
+                            {{ latest_rate.hourly_rate|floatformat:"0" }}
+                        {% else %}—{% endif %}
+                    </div>
+                    <div class="stat-label">Rezsióradíj (Ft/óra)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# Hogyan működik #}
+<section class="py-5 bg-white">
+    <div class="container">
+        <h2 class="text-center fw-bold mb-5">Hogyan működik?</h2>
+        <div class="row g-4">
+            <div class="col-md-4 text-center">
+                <div class="display-4 text-primary mb-3">1</div>
+                <h5>Válassz munkafolyamatokat</h5>
+                <p class="text-muted">Több mint 70 előre definiált villanyszerelési munkafolyamat közül választhatsz.</p>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="display-4 text-primary mb-3">2</div>
+                <h5>Állítsd be a szorzókat</h5>
+                <p class="text-muted">Nehézség, sürgősség, épület típusa — a szorzók automatikusan módosítják a normaidőt.</p>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="display-4 text-primary mb-3">3</div>
+                <h5>Kapd meg az árat</h5>
+                <p class="text-muted">A kalkulátor a rezsióradíj alapján azonnal kiszámolja a munkadíjat, anyagköltséggel és ÁFÁ-val együtt.</p>
+            </div>
+        </div>
+        <div class="text-center mt-5">
+            <a href="{% url 'calculator' %}" class="btn btn-primary btn-lg">
+                <i class="bi bi-arrow-right-circle me-2"></i>Kezdd el a kalkulációt
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

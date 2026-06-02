@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Új kalkuláció — Munkadíj Kalkulátor{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="fw-bold mb-4">
+        <i class="bi bi-calculator me-2"></i>Munkadíj kalkuláció
+    </h2>
+
+    <form id="calc-form" method="post" action="{% url 'calculator' %}">
+        {% csrf_token %}
+
+        <div class="row">
+            {# Bal oldal: bemeneti adatok #}
+            <div class="col-lg-8">
+
+                {# Rezsióradíj választó #}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <label class="calc-section-title">
+                            <i class="bi bi-cash-stack me-2"></i>Rezsióradíj
+                        </label>
+                        <div class="row align-items-center">
+                            <div class="col-sm-6">
+                                <select name="hourly_rate" id="hourly_rate" class="form-select">
+                                    {% for rate in hourly_rates %}
+                                        <option value="{{ rate.id }}" {% if forloop.first %}selected{% endif %}>
+                                            {{ rate.name }} — {{ rate.hourly_rate }} Ft/óra
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# Munkafolyamatok kategóriánként #}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <label class="calc-section-title">
+                            <i class="bi bi-tools me-2"></i>Munkafolyamatok kiválasztása
+                        </label>
+
+                        {# Kereső #}
+                        <input type="text" id="item-search" class="form-control mb-3"
+                               placeholder="Keresés a munkafolyamatok között...">
+
+                        <div id="categories-accordion">
+                            {% for category in categories %}
+                                <div class="category-group mb-3" data-category="{{ category.name|lower }}">
+                                    <button type="button"
+                                            class="btn btn-light w-100 text-start d-flex justify-content-between align-items-center"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#cat-{{ category.id }}"
+                                            aria-expanded="false">
+                                        <span>
+                                            <strong>{{ category.name }}</strong>
+                                            <small class="text-muted ms-2">({{ category.items.count }} tétel)</small>
+                                        </span>
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                    <div class="collapse" id="cat-{{ category.id }}">
+                                        <div class="pt-2">
+                                            {% for item in category.items.all %}
+                                                {% if item.is_active %}
+                                                    <div class="work-item-row" data-item-name="{{ item.name|lower }}">
+                                                        <input type="checkbox"
+                                                               name="item_{{ item.id }}_checked"
+                                                               class="form-check-input item-check"
+                                                               data-item-id="{{ item.id }}">
+                                                        <span class="item-name">{{ item.name }}</span>
+                                                        <span class="item-time">
+                                                            {{ item.base_time_hours|floatformat:"0" }} ó/{{ item.get_unit_display }}
+                                                            ({{ item.time_in_minutes|floatformat:"0" }} p)
+                                                        </span>
+                                                        <input type="number"
+                                                               name="item_{{ item.id }}_qty"
+                                                               class="form-control form-control-sm item-qty"
+                                                               value="1"
+                                                               min="1"
+                                                               max="999"
+                                                               data-item-id="{{ item.id }}"
+                                                               disabled
+                                                               style="width: 80px;">
+                                                        <span class="text-muted" style="font-size: 0.85rem;">
+                                                            {{ item.get_unit_display }}
+                                                        </span>
+                                                    </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div id="no-results" class="text-center text-muted py-4" style="display:none;">
+                            <i class="bi bi-search display-4"></i>
+                            <p>Nincs találat. Próbálj más keresőszót!</p>
+                        </div>
+                    </div>
+                </div>
+
+                {# Szorzók #}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <label class="calc-section-title">
+                            <i class="bi bi-percent me-2"></i>Szorzók (helyszíni körülmények)
+                        </label>
+
+                        {# Épület típus #}
+                        <div class="mb-3">
+                            <small class="text-muted fw-semibold">Épület típusa:</small>
+                            <div class="row g-2 mt-1">
+                                {% for m in multipliers %}
+                                    {% if m.type == 'building' %}
+                                        <div class="col-6 col-md-4">
+                                            <label class="multiplier-check" id="mult-label-{{ m.id }}"
+                                                   onclick="toggleMultiplier({{ m.id }})">
+                                                <input type="checkbox" name="multipliers" value="{{ m.id }}"
+                                                       data-mult-type="building" class="mult-checkbox"
+                                                       id="mult-{{ m.id }}">
+                                                <span>
+                                                    <span class="fw-semibold">{{ m.name }}</span><br>
+                                                    <small class="text-muted">
+                                                        {% if m.value > 1 %}+{% endif %}
+                                                        {% widthratio m.value 1 100 %}&percnt;
+                                                    </small>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        {# Nehézség #}
+                        <div class="mb-3">
+                            <small class="text-muted fw-semibold">Hozzáférhetőség / nehézség:</small>
+                            <div class="row g-2 mt-1">
+                                {% for m in multipliers %}
+                                    {% if m.type == 'difficulty' %}
+                                        <div class="col-6 col-md-4">
+                                            <label class="multiplier-check {% if m.value == 1.0 %}selected{% endif %}"
+                                                   id="mult-label-{{ m.id }}"
+                                                   onclick="toggleMultiplier({{ m.id }})">
+                                                <input type="checkbox" name="multipliers" value="{{ m.id }}"
+                                                       data-mult-type="difficulty" class="mult-checkbox"
+                                                       id="mult-{{ m.id }}"
+                                                       {% if m.value == 1.0 %}checked{% endif %}>
+                                                <span>
+                                                    <span class="fw-semibold">{{ m.name }}</span><br>
+                                                    <small class="text-muted">
+                                                        {% if m.value > 1 %}+{% endif %}
+                                                        {% widthratio m.value 1 100 %}&percnt;
+                                                    </small>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        {# Sürgősség #}
+                        <div class="mb-3">
+                            <small class="text-muted fw-semibold">Sürgősség:</small>
+                            <div class="row g-2 mt-1">
+                                {% for m in multipliers %}
+                                    {% if m.type == 'urgency' %}
+                                        <div class="col-6 col-md-4">
+                                            <label class="multiplier-check {% if m.value == 1.0 %}selected{% endif %}"
+                                                   id="mult-label-{{ m.id }}"
+                                                   onclick="toggleMultiplier({{ m.id }})">
+                                                <input type="checkbox" name="multipliers" value="{{ m.id }}"
+                                                       data-mult-type="urgency" class="mult-checkbox"
+                                                       id="mult-{{ m.id }}"
+                                                       {% if m.value == 1.0 %}checked{% endif %}>
+                                                <span>
+                                                    <span class="fw-semibold">{{ m.name }}</span><br>
+                                                    <small class="text-muted">
+                                                        {% if m.value > 1 %}+{% endif %}
+                                                        {% widthratio m.value 1 100 %}&percnt;
+                                                    </small>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        {# Egyéb szorzók #}
+                        <div>
+                            <small class="text-muted fw-semibold">Egyéb:</small>
+                            <div class="row g-2 mt-1">
+                                {% for m in multipliers %}
+                                    {% if m.type == 'other' %}
+                                        <div class="col-6 col-md-4">
+                                            <label class="multiplier-check" id="mult-label-{{ m.id }}"
+                                                   onclick="toggleMultiplier({{ m.id }})">
+                                                <input type="checkbox" name="multipliers" value="{{ m.id }}"
+                                                       data-mult-type="other" class="mult-checkbox"
+                                                       id="mult-{{ m.id }}">
+                                                <span>
+                                                    <span class="fw-semibold">{{ m.name }}</span><br>
+                                                    <small class="text-muted">
+                                                        {% if m.value > 1 %}+{% endif %}
+                                                        {% widthratio m.value 1 100 %}&percnt;
+                                                    </small>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# Extra költségek #}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <label class="calc-section-title">
+                            <i class="bi bi-plus-circle me-2"></i>Extra költségek
+                        </label>
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label">Kiszállási díj (Ft)</label>
+                                <input type="number" name="travel_fee" class="form-control" value="0" min="0">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label">Anyagköltség (Ft)</label>
+                                <input type="number" name="material_cost" class="form-control" value="0" min="0">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label">Kedvezmény (%)</label>
+                                <input type="number" name="discount_percent" class="form-control" value="0" min="0" max="100" step="0.1">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label">ÁFA (%)</label>
+                                <input type="number" name="vat_rate" class="form-control" value="27" min="0" max="27" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# Ügyfél adatok (mentéshez) #}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <label class="calc-section-title">
+                            <i class="bi bi-person me-2"></i>Ügyfél adatok (ajánlat mentéséhez)
+                        </label>
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label">Ügyfél neve</label>
+                                <input type="text" name="customer_name" class="form-control" placeholder="Teljes név">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label">Telefonszám</label>
+                                <input type="text" name="customer_phone" class="form-control" placeholder="+36...">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label">E-mail</label>
+                                <input type="email" name="customer_email" class="form-control" placeholder="email@example.com">
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label">Helyszín</label>
+                                <input type="text" name="customer_address" class="form-control" placeholder="Cím">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Megjegyzés</label>
+                                <textarea name="project_note" class="form-control" rows="2" placeholder="Pl. projekt leírása, speciális kérések..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            {# Jobb oldal: Eredmény panel #}
+            <div class="col-lg-4">
+                <div class="result-panel" id="result-panel">
+                    <h3><i class="bi bi-receipt me-2"></i>Kalkuláció eredménye</h3>
+                    <div id="result-content">
+                        <p class="text-white-50">Válassz ki munkafolyamatokat a bal oldalon, majd kattints a <strong>"Számítás"</strong> gombra.</p>
+                    </div>
+
+                    <button type="button" id="btn-calculate" class="btn btn-accent btn-lg w-100 mt-3">
+                        <i class="bi bi-calculator-fill me-2"></i>Számítás
+                    </button>
+
+                    <button type="button" id="btn-save" class="btn btn-outline-light w-100 mt-2" style="display:none;">
+                        <i class="bi bi-save me-2"></i>Ajánlat mentése
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ============================================================
+// Kalkulátor JavaScript — AJAX számítás és mentés
+// ============================================================
+
+// CSRF token
+function getCSRFToken() {
+    const name = 'csrftoken';
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        cookie = cookie.trim();
+        if (cookie.startsWith(name + '=')) {
+            return decodeURIComponent(cookie.substring(name.length + 1));
+        }
+    }
+    return '';
+}
+
+// Checkbox + mennyiség összekapcsolás
+document.querySelectorAll('.item-check').forEach(cb => {
+    cb.addEventListener('change', function() {
+        const itemId = this.dataset.itemId;
+        const qtyInput = document.querySelector(`.item-qty[data-item-id="${itemId}"]`);
+        if (qtyInput) {
+            qtyInput.disabled = !this.checked;
+            if (this.checked && !qtyInput.value) qtyInput.value = 1;
+        }
+    });
+});
+
+// Keresés a munkafolyamatok között
+document.getElementById('item-search').addEventListener('input', function() {
+    const query = this.value.toLowerCase();
+    const rows = document.querySelectorAll('.work-item-row');
+    const categories = document.querySelectorAll('.category-group');
+    let anyVisible = false;
+
+    categories.forEach(cat => {
+        let catVisible = false;
+        const rows = cat.querySelectorAll('.work-item-row');
+        rows.forEach(row => {
+            const name = row.dataset.itemName || '';
+            if (query === '' || name.includes(query)) {
+                row.style.display = '';
+                catVisible = true;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        cat.style.display = catVisible ? '' : 'none';
+        if (catVisible) {
+            anyVisible = true;
+            // Nyisd ki a kategóriát
+            const collapseEl = cat.querySelector('.collapse');
+            if (collapseEl && !collapseEl.classList.contains('show')) {
+                new bootstrap.Collapse(collapseEl, {toggle: true});
+            }
+        }
+    });
+
+    document.getElementById('no-results').style.display = anyVisible ? 'none' : '';
+});
+
+// Szorzó típusonként csak egy választható (building, difficulty, urgency)
+document.querySelectorAll('.mult-checkbox').forEach(cb => {
+    cb.addEventListener('change', function() {
+        const type = this.dataset.multType;
+        if (this.checked && type !== 'other') {
+            // Kikapcsoljuk a többi azonos típusú checkbox-ot
+            document.querySelectorAll(`.mult-checkbox[data-mult-type="${type}"]`).forEach(other => {
+                if (other !== this) {
+                    other.checked = false;
+                    other.closest('.multiplier-check').classList.remove('selected');
+                }
+            });
+        }
+        this.closest('.multiplier-check').classList.toggle('selected', this.checked);
+    });
+});
+
+function toggleMultiplier(id) {
+    const cb = document.getElementById('mult-' + id);
+    if (cb) {
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change'));
+    }
+}
+
+// Számítás gomb
+document.getElementById('btn-calculate').addEventListener('click', function() {
+    const form = document.getElementById('calc-form');
+    const formData = new FormData(form);
+
+    // Ellenőrizzük, van-e legalább egy kiválasztott tétel
+    let hasItems = false;
+    document.querySelectorAll('.item-check:checked').forEach(cb => {
+        hasItems = true;
+    });
+    if (!hasItems) {
+        document.getElementById('result-content').innerHTML =
+            '<div class="alert alert-warning">Válassz ki legalább egy munkafolyamatot!</div>';
+        return;
+    }
+
+    // Gomb letiltása a kérés idejére
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Számolás...';
+
+    fetch('{% url "calculator" %}', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCSRFToken(),
+        },
+        body: formData,
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (!data.success) {
+            document.getElementById('result-content').innerHTML =
+                '<div class="alert alert-danger">Hiba történt a számítás során.</div>';
+            return;
+        }
+        displayResult(data);
+        document.getElementById('btn-save').style.display = 'block';
+    })
+    .catch(err => {
+        console.error(err);
+        document.getElementById('result-content').innerHTML =
+            '<div class="alert alert-danger">Hálózati hiba. Próbáld újra!</div>';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-calculator-fill me-2"></i>Számítás';
+    });
+});
+
+function displayResult(data) {
+    let html = '';
+
+    // Szorzók
+    if (data.multipliers.length > 0) {
+        const multNames = data.multipliers.map(m => m.name).join(', ');
+        html += `<div class="result-row">
+            <span class="label">Szorzók:</span>
+            <span>${multNames} (${data.multiplier_total.toFixed(2)}x)</span>
+        </div>`;
+    }
+
+    // Tételek
+    data.items.forEach(item => {
+        html += `<div class="result-row" style="font-size:0.85rem;">
+            <span class="label">${item.name} (${item.quantity} ${item.unit})</span>
+            <span>${item.price.toLocaleString()} Ft</span>
+        </div>`;
+        html += `<div style="font-size:0.75rem; opacity:0.6; text-align:right; margin-top:-6px; margin-bottom:4px;">
+            ${item.hours.toFixed(2)} óra
+        </div>`;
+    });
+
+    // Összes óra
+    html += `<div class="result-row">
+        <span class="label">Összes munkaóra:</span>
+        <span>${data.total_hours.toFixed(2)} ó</span>
+    </div>`;
+
+    // Munkadíj
+    html += `<div class="result-row">
+        <span class="label">Munkadíj (${data.hourly_rate.toLocaleString()} Ft/ó):</span>
+        <span>${data.total_labor.toLocaleString()} Ft</span>
+    </div>`;
+
+    // Kiszállás
+    if (data.travel_fee > 0) {
+        html += `<div class="result-row">
+            <span class="label">Kiszállási díj:</span>
+            <span>${data.travel_fee.toLocaleString()} Ft</span>
+        </div>`;
+    }
+
+    // Anyagköltség
+    if (data.material_cost > 0) {
+        html += `<div class="result-row">
+            <span class="label">Anyagköltség:</span>
+            <span>${data.material_cost.toLocaleString()} Ft</span>
+        </div>`;
+    }
+
+    // Részösszeg
+    html += `<div class="result-row">
+        <span class="label">Nettó részösszeg:</span>
+        <span>${data.subtotal.toLocaleString()} Ft</span>
+    </div>`;
+
+    // Kedvezmény
+    if (data.discount_percent > 0) {
+        html += `<div class="result-row">
+            <span class="label">Kedvezmény (${data.discount_percent}%):</span>
+            <span>-${data.discount_amount.toLocaleString()} Ft</span>
+        </div>`;
+    }
+
+    // ÁFA
+    html += `<div class="result-row">
+        <span class="label">ÁFA (${data.vat_rate}%):</span>
+        <span>${(data.total - data.subtotal + data.discount_amount).toLocaleString()} Ft</span>
+    </div>`;
+
+    // Végösszeg
+    html += `<div class="result-row total">
+        <span>VÉGÖSSZEG:</span>
+        <span>${data.total.toLocaleString()} Ft</span>
+    </div>`;
+
+    document.getElementById('result-content').innerHTML = html;
+}
+
+// Mentés gomb
+document.getElementById('btn-save').addEventListener('click', function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mentés...';
+
+    const form = document.getElementById('calc-form');
+    const formData = new FormData(form);
+
+    fetch('{% url "save_estimate" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCSRFToken(),
+        },
+        body: formData,
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.success) {
+            // Toast
+            const toastEl = document.createElement('div');
+            toastEl.className = 'toast align-items-center text-bg-success border-0';
+            toastEl.setAttribute('role', 'alert');
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        Ajánlat #${data.estimate_id} elmentve! (${data.total.toLocaleString()} Ft)
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>`;
+            let container = document.querySelector('.toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+            container.appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl, {delay: 4000});
+            toast.show();
+            toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+        } else {
+            alert('Hiba a mentés során: ' + (data.error || 'Ismeretlen hiba'));
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Hálózati hiba. Próbáld újra!');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save me-2"></i>Ajánlat mentése';
+    });
+});
+
+</script>
+{% endblock %}
