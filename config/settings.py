@@ -98,7 +98,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Production security (Railway)
 if not DEBUG:
-    CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://*.railway.app').split(',')
+    # CSRF_TRUSTED_ORIGINS: Django NEM támogatja a wildcardot (*.railway.app)!
+    # Ezért a Railway által automatikusan beállított RAILWAY_PUBLIC_DOMAIN-t használjuk
+    csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+    if csrf_origins:
+        CSRF_TRUSTED_ORIGINS = csrf_origins.split(',')
+    else:
+        railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
+        if railway_domain:
+            CSRF_TRUSTED_ORIGINS = [f'https://{railway_domain}']
+        else:
+            CSRF_TRUSTED_ORIGINS = []
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = True
